@@ -1,0 +1,1231 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>みんなのわりかん箱</title>
+  <!-- 
+    Tailwind CSS CDN: 
+    ビルド工程（Node.js/npm）を排除し、GASの単一HTMLファイル構成で爆速動作させるための選定
+  -->
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 min-h-screen p-3 sm:p-5 flex flex-col items-center font-sans text-slate-800">
+
+  <div class="w-full max-w-md space-y-4">
+
+    <!-- 0. 初期セットアップ案内カード（イベントが0件のときのみ表示） -->
+    <div id="welcomeCard" class="hidden bg-white rounded-3xl shadow-sm p-6 border border-slate-200/80 text-center space-y-4">
+      <div class="text-4xl">📦</div>
+      <div>
+        <h2 class="text-base font-black text-slate-800">ようこそ！みんなのわりかん箱へ</h2>
+        <p class="text-xs text-slate-500 mt-1">このグループでの割り勘はまだ始まっていません。<br>まずはイベント（旅や飲み会）を作りましょう！</p>
+      </div>
+      <button type="button" onclick="promptCreateEvent()" 
+        class="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-sm rounded-2xl shadow-md transition active:scale-95">
+        ＋ 最初のイベントを作成する
+      </button>
+    </div>
+
+    <!-- 1. メイン入力カード（イベントが存在するときに表示） -->
+    <div id="mainCard" class="bg-white rounded-3xl shadow-sm p-6 border border-slate-200/80 space-y-5">
+      
+      <!-- イベント選択ヘッダー -->
+      <div class="space-y-1.5 border-b pb-3">
+        <div class="flex justify-between items-center">
+          <span class="text-[10px] font-bold tracking-wider text-indigo-500 uppercase">Current Event</span>
+          <button type="button" onclick="promptCreateEvent()" class="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-3 py-1 rounded-full font-bold transition">
+            ＋ 新しいイベント
+          </button>
+        </div>
+        <select id="eventSelect" onchange="onEventChanged()" class="w-full text-base font-black text-slate-800 bg-transparent focus:outline-none cursor-pointer py-1">
+          <!-- JSで動的生成 -->
+        </select>
+      </div>
+
+      <!-- 終了イベント（closed）時のロックバナーおよび確定結果表示エリア -->
+      <div id="closedEventBanner" class="hidden space-y-3">
+        <div class="bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2 rounded-2xl text-xs font-bold flex items-center gap-1.5">
+          <span>🔒</span> このイベントは終了しています（履歴の閲覧のみ可能です）
+        </div>
+        <!-- 終了イベント用 精算結果カード -->
+        <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2.5">
+          <h4 class="text-xs font-black text-slate-700 flex items-center gap-1.5 border-b pb-2">
+            <span>🎉</span> 確定精算結果
+          </h4>
+          <div id="closedSettlementList" class="space-y-1.5 text-xs">
+            <!-- JSで動的生成 -->
+          </div>
+        </div>
+      </div>
+
+      <!-- 支払い入力フォーム（進行中イベントでのみ表示） -->
+      <form id="paymentForm" onsubmit="submitForm(event)" class="space-y-4">
+        
+        <!-- 支払った人（オプトイン＆localStorageによる自分記憶対応） -->
+        <div>
+          <div class="flex justify-between items-center mb-1">
+            <label class="block text-xs font-bold text-slate-500">支払った人</label>
+            <button type="button" onclick="promptAddMember()" class="text-xs text-indigo-600 hover:text-indigo-800 font-bold">
+              ＋ メンバー追加
+            </button>
+          </div>
+          <select id="payerSelect" required class="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-700">
+            <!-- JSで動的生成 -->
+          </select>
+        </div>
+
+        <!-- 金額入力（3桁カンマ＆8桁上限物理リミッター付き） -->
+        <div>
+          <label class="block text-xs font-bold text-slate-500 mb-1">金額（円）</label>
+          <div class="relative">
+            <span class="absolute left-3.5 top-3 text-lg font-bold text-slate-400">¥</span>
+            <input type="text" id="amountInput" placeholder="3,500" required inputmode="numeric"
+              oninput="formatCurrency(this)"
+              class="w-full pl-8 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xl font-black text-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+        </div>
+
+        <!-- 費目メモ -->
+        <div>
+          <label class="block text-xs font-bold text-slate-500 mb-1">支払い内容（何に使った？）</label>
+          <input type="text" id="descInput" placeholder="例: レンタカー代、スタバ" required maxlength="50"
+            class="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium">
+        </div>
+
+        <!-- 割り勘対象メンバー選択（全選択/全解除の独立ボタン仕様） -->
+        <div>
+          <div class="flex justify-between items-center mb-2">
+            <div class="flex items-center space-x-2">
+              <label class="text-xs font-bold text-slate-500">割り勘する対象者</label>
+              <div class="flex items-center space-x-1 bg-slate-100 px-2 py-0.5 rounded-lg text-[11px] font-bold text-slate-500">
+                <button type="button" onclick="selectAllTargets(true)" class="hover:text-indigo-600 transition">全選択</button>
+                <span class="text-slate-300">|</span>
+                <button type="button" onclick="selectAllTargets(false)" class="hover:text-indigo-600 transition">全解除</button>
+              </div>
+            </div>
+            
+            <div class="flex items-center space-x-2">
+              <button type="button" onclick="promptAddMember()" class="text-xs text-indigo-600 hover:text-indigo-800 font-bold">
+                ＋ 追加
+              </button>
+              <button type="button" onclick="openMemberModal()" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-2.5 py-1 rounded-lg font-bold transition">
+                ⚙️ 管理
+              </button>
+            </div>
+          </div>
+
+          <div id="targetMembersContainer" class="grid grid-cols-2 gap-2">
+            <!-- JSで動的生成 -->
+          </div>
+        </div>
+
+        <!-- 記録送信ボタン -->
+        <button type="submit" id="submitBtn"
+          class="w-full py-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-black text-base rounded-2xl shadow-md transition active:scale-95 text-center">
+          支払いを記録する
+        </button>
+      </form>
+
+      <!-- リアルタイム試算ボタン（進行中・終了後いつでも確認可能） -->
+      <button type="button" onclick="openBalanceModal()"
+        class="w-full py-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold text-xs rounded-2xl transition flex items-center justify-center gap-1.5 active:scale-95">
+        <span>📊</span> <span id="balanceBtnText">現在の支払いバランス・精算を見る</span>
+      </button>
+
+      <!-- Web画面からの精算確定ボタン（進行中イベントのみ表示） -->
+      <button type="button" id="settleEventBtn" onclick="promptSettleCurrentEvent()"
+        class="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white font-black text-xs rounded-2xl shadow-sm transition flex items-center justify-center gap-1.5 active:scale-95">
+        <span>🎉</span> このイベントを終了して精算する
+      </button>
+
+      <!-- トースト通知エリア -->
+      <div id="statusMessage" class="hidden text-center text-sm font-bold py-2.5 rounded-xl"></div>
+    </div>
+
+    <!-- 2. 支払い履歴カード -->
+    <div id="historyCard" class="bg-white rounded-3xl shadow-sm p-6 border border-slate-200/80 space-y-3">
+      <div class="flex justify-between items-center border-b pb-2">
+        <h3 class="text-sm font-bold text-slate-700 flex items-center gap-1.5">
+          <span>📜</span> 支払い履歴
+        </h3>
+        <span id="historyCount" class="text-xs text-slate-400 font-bold">0件</span>
+      </div>
+      <div id="historyList" class="divide-y divide-slate-100 max-h-60 overflow-y-auto space-y-1">
+        <!-- JSで動的生成（論理削除項目は打消線表示） -->
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- モーダル群（ブラウザ標準ポップアップを排除した自前UIコンポーネント） -->
+  <!-- ======================================================== -->
+
+  <!-- A. 支払いバランス・試算モーダル -->
+  <div id="balanceModal" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-sm rounded-3xl shadow-xl p-5 space-y-4 max-h-[85vh] flex flex-col">
+      <div class="flex justify-between items-center border-b pb-2">
+        <h3 class="font-black text-sm text-slate-800 flex items-center gap-1.5">
+          <span>📊</span> 現在の支払いバランス
+        </h3>
+        <button onclick="closeBalanceModal()" class="text-slate-400 hover:text-slate-600 text-lg font-bold p-1">✕</button>
+      </div>
+
+      <div class="space-y-4 overflow-y-auto flex-1 pr-1">
+        <!-- 「次は誰が払う？」レコメンドバナー -->
+        <div id="balanceNextPayerBox" class="bg-indigo-50 border border-indigo-100 rounded-2xl p-3 text-xs text-indigo-900">
+          <!-- JSで動的生成 -->
+        </div>
+
+        <!-- メンバー別 収支一覧（+○円 / -○円） -->
+        <div>
+          <span class="text-xs font-bold text-slate-500 block mb-1.5">各メンバーの立て替え状況</span>
+          <div id="balanceMemberList" class="space-y-1.5">
+            <!-- JSで動的生成 -->
+          </div>
+        </div>
+
+        <!-- 仮の相殺精算ルート -->
+        <div class="border-t pt-3">
+          <span class="text-xs font-bold text-slate-500 block mb-1.5">今精算した場合の送金</span>
+          <div id="balanceSettlementList" class="space-y-1.5 text-xs">
+            <!-- JSで動的生成 -->
+          </div>
+        </div>
+      </div>
+
+      <button onclick="closeBalanceModal()" class="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition">
+        閉じる
+      </button>
+    </div>
+  </div>
+
+  <!-- B. メンバー管理モーダル（論理削除 ＆ 自分設定） -->
+  <div id="memberModal" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-sm rounded-3xl shadow-xl p-5 space-y-4 max-h-[85vh] flex flex-col">
+      <div class="flex justify-between items-center border-b pb-2">
+        <h3 class="font-black text-sm text-slate-800 flex items-center gap-1.5">
+          <span>⚙️</span> メンバー管理
+        </h3>
+        <button onclick="closeMemberModal()" class="text-slate-400 hover:text-slate-600 text-lg font-bold p-1">✕</button>
+      </div>
+
+      <div class="space-y-4 overflow-y-auto flex-1 pr-1">
+        <div>
+          <div class="flex justify-between items-center mb-1.5">
+            <span class="text-xs font-bold text-slate-500">参加中メンバー</span>
+            <span id="activeCount" class="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">0人</span>
+          </div>
+          <div id="activeMemberList" class="space-y-1.5"></div>
+        </div>
+
+        <div id="inactiveSection" class="hidden border-t pt-3">
+          <div class="flex justify-between items-center mb-1.5">
+            <span class="text-xs font-bold text-slate-400">お休み中メンバー</span>
+            <span id="inactiveCount" class="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">0人</span>
+          </div>
+          <div id="inactiveMemberList" class="space-y-1.5"></div>
+        </div>
+      </div>
+
+      <button onclick="closeMemberModal()" class="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition">
+        閉じる
+      </button>
+    </div>
+  </div>
+
+  <!-- C. 汎用テキスト入力モーダル（脱・prompt） -->
+  <div id="inputModal" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-sm rounded-3xl shadow-xl p-5 space-y-4">
+      <div class="flex justify-between items-center border-b pb-2">
+        <h3 id="inputModalTitle" class="font-black text-sm text-slate-800">入力</h3>
+        <button type="button" onclick="closeInputModal()" class="text-slate-400 hover:text-slate-600 text-lg font-bold p-1">✕</button>
+      </div>
+      <input type="text" id="inputModalField" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      <div class="flex space-x-2">
+        <button type="button" id="inputModalCancelBtn" onclick="closeInputModal()" class="w-1/2 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl transition">
+          閉じる（過去の履歴を見る）
+        </button>
+        <button type="button" id="inputModalSubmitBtn" onclick="submitCustomInput()" class="w-1/2 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md transition">決定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- D. 汎用確認モーダル（脱・confirm / 危険操作の赤ボタン対応） -->
+  <div id="confirmModal" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-sm rounded-3xl shadow-xl p-5 space-y-4">
+      <h3 id="confirmModalTitle" class="font-black text-sm text-slate-800">確認</h3>
+      <p id="confirmModalMessage" class="text-xs text-slate-600 leading-relaxed whitespace-pre-wrap"></p>
+      <div class="flex space-x-2 pt-1">
+        <button type="button" onclick="closeConfirmModal()" 
+          class="w-1/2 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl transition">
+          キャンセル
+        </button>
+        <button type="button" id="confirmModalOkBtn" 
+          class="w-1/2 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-md transition">
+          実行する
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- E. 支払い詳細モーダル（脱・alert） -->
+  <div id="paymentDetailModal" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-sm rounded-3xl shadow-xl p-5 space-y-4">
+      <div class="flex justify-between items-center border-b pb-2">
+        <h3 class="font-black text-sm text-slate-800 flex items-center gap-1.5">
+          <span>🧾</span> 支払い詳細
+        </h3>
+        <button type="button" onclick="closePaymentDetailModal()" class="text-slate-400 hover:text-slate-600 text-lg font-bold p-1">✕</button>
+      </div>
+
+      <!-- 取消済バナー -->
+      <div id="detailDeletedBanner" class="hidden bg-rose-50 border border-rose-200 text-rose-700 px-3 py-2 rounded-2xl text-xs font-bold">
+        ⚠️ この支払いは【取消済み】です（精算から除外）
+      </div>
+
+      <div class="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-100 text-xs">
+        <div class="flex justify-between items-center border-b border-slate-200/60 pb-2">
+          <span class="text-slate-400 font-bold">内容</span>
+          <span id="detailDesc" class="font-black text-slate-800 text-sm truncate max-w-[180px]">-</span>
+        </div>
+        <div class="flex justify-between items-center border-b border-slate-200/60 pb-2">
+          <span class="text-slate-400 font-bold">金額</span>
+          <span id="detailAmount" class="font-black text-indigo-600 text-base font-mono">-</span>
+        </div>
+        <div class="flex justify-between items-center border-b border-slate-200/60 pb-2">
+          <span class="text-slate-400 font-bold">支払った人</span>
+          <span id="detailPayer" class="font-bold text-slate-700">-</span>
+        </div>
+        <div class="space-y-1 border-b border-slate-200/60 pb-2">
+          <span class="text-slate-400 font-bold block">割り勘の対象</span>
+          <span id="detailTargets" class="font-bold text-slate-700 block break-words">-</span>
+        </div>
+        <div class="flex justify-between items-center pt-0.5 text-[10px] text-slate-400">
+          <span>記録日時</span>
+          <span id="detailDate">-</span>
+        </div>
+      </div>
+
+      <button type="button" onclick="closePaymentDetailModal()" 
+        class="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition">
+        閉じる
+      </button>
+    </div>
+  </div>
+
+  <!-- フッター（目安箱・利用規約への導線） -->
+  <footer class="w-full max-w-md pt-6 pb-8 text-center space-y-2 mt-auto">
+    <div class="flex items-center justify-center gap-2">
+      <!-- Googleフォーム目安箱（完全匿名・返信義務ゼロ設計） -->
+      <a href="YOUR_GOOGLE_FORM_URL" 
+         target="_blank" 
+         rel="noopener noreferrer"
+         class="inline-flex items-center gap-1 text-[11px] font-bold text-slate-400 hover:text-indigo-600 transition bg-white/60 hover:bg-white px-3 py-1.5 rounded-full border border-slate-200/80 shadow-sm active:scale-95">
+        <span>📮</span>
+        <span>目安箱</span>
+        <span class="text-[9px] text-slate-300">↗</span>
+      </a>
+
+      <!-- 法的免責ページへの直リンク -->
+      <a href="<?= serverWebAppUrl ?>?page=terms" 
+         target="_blank" 
+         rel="noopener noreferrer"
+         class="inline-flex items-center gap-1 text-[11px] font-bold text-slate-400 hover:text-indigo-600 transition bg-white/60 hover:bg-white px-3 py-1.5 rounded-full border border-slate-200/80 shadow-sm active:scale-95">
+        <span>📜</span>
+        <span>規約・ポリシー</span>
+        <span class="text-[9px] text-slate-300">↗</span>
+      </a>
+    </div>
+
+    <p class="text-[10px] text-slate-400 font-medium tracking-wider">みんなのわりかん箱</p>
+  </footer>
+
+  <!-- ======================================================== -->
+  <!-- クライアントサイド JavaScript -->
+  <!-- ======================================================== -->
+  <script>
+    /**
+     * アプリケーションのグローバル状態管理オブジェクト
+     * GASのdoGet時にテンプレート評価で埋め込まれたGroupID, EventIDを即時保持
+     */
+    let appData = { 
+      groupId: "<?= serverGroupId ?>", 
+      targetEventId: "<?= serverEventId ?>",
+      currentEventId: null, 
+      events: [], 
+      members: [], 
+      payments: [] 
+    };
+
+    // 初期化：DOM構築完了直後にサーバーからデータ取得を開始
+    window.addEventListener("DOMContentLoaded", function() {
+      loadData(appData.targetEventId || null);
+    });
+
+    /**
+     * GASバックエンドからデータを非同期取得する
+     * @param {string|null} selectedEventId - フォーカスするイベントID
+     */
+    function loadData(selectedEventId) {
+      var eventIdToSend = selectedEventId || appData.targetEventId || null;
+
+      google.script.run
+        .withSuccessHandler(function(data) {
+          if (eventIdToSend) {
+            data.currentEventId = eventIdToSend;
+          }
+          renderApp(data);
+        })
+        .withFailureHandler(function(err) {
+          alert("読み込みエラー: " + err.message);
+        })
+        .getInitialData(appData.groupId, eventIdToSend);
+    }
+
+    /**
+     * 金額入力のフォーマッター（3桁カンマ区切り ＆ 8桁上限物理リミッター）
+     * サーバーに不正な値が飛ぶ前にフロントで物理的にブロックする
+     */
+    function formatCurrency(input) {
+      var raw = input.value.replace(/[^0-9]/g, "");
+      if (raw.length > 8) raw = raw.slice(0, 8); // 9,999万円上限
+      input.value = raw ? Number(raw).toLocaleString() : "";
+    }
+
+    /**
+     * イベントプルダウン変更時のハンドラー
+     */
+    function onEventChanged() {
+      var select = document.getElementById("eventSelect");
+      appData.currentEventId = select.value;
+      updateFormLockState();
+      renderHistory();
+    }
+
+    /**
+     * イベントのステータス（active / closed）に応じたUIの切り替え
+     * closed時は入力フォームを隠し、確定精算結果を表示する
+     */
+    function updateFormLockState() {
+      var currentEv = appData.events.find(function(e) { return e.id === appData.currentEventId; });
+      var isClosed = currentEv && currentEv.status === "closed";
+
+      var banner = document.getElementById("closedEventBanner");
+      var form = document.getElementById("paymentForm");
+      var balanceBtnText = document.getElementById("balanceBtnText");
+      var settleBtn = document.getElementById("settleEventBtn");
+
+      if (isClosed) {
+        banner.classList.remove("hidden");
+        form.classList.add("hidden");
+        if (settleBtn) settleBtn.classList.add("hidden");
+        balanceBtnText.textContent = "支払いバランス・詳細内訳を見る";
+        renderClosedSettlement();
+      } else {
+        banner.classList.add("hidden");
+        form.classList.remove("hidden");
+        if (settleBtn) settleBtn.classList.remove("hidden");
+        balanceBtnText.textContent = "現在の支払いバランス・精算を見る";
+      }
+    }
+
+    /**
+     * 終了済みイベント用の確定精算結果を描画する
+     */
+    function renderClosedSettlement() {
+      var container = document.getElementById("closedSettlementList");
+      container.innerHTML = "";
+
+      var currentPayments = appData.payments.filter(function(p) { 
+        return p.eventId === appData.currentEventId && p.status !== "deleted"; 
+      });
+
+      if (currentPayments.length === 0) {
+        container.innerHTML = '<p class="text-xs text-slate-400 py-1">記録された支払いはありません</p>';
+        return;
+      }
+
+      // 収支集計ロジック
+      var balances = {};
+      var memberMap = {};
+      appData.members.forEach(function(m) {
+        balances[m.id] = 0;
+        memberMap[m.id] = m.name;
+      });
+
+      currentPayments.forEach(function(p) {
+        var payerMember = appData.members.find(function(m) { return m.name === p.payerName; });
+        var payerId = payerMember ? payerMember.id : null;
+        if (payerId && balances[payerId] !== undefined) balances[payerId] += p.amount;
+
+        var targetIds = [];
+        p.targetNames.forEach(function(tName) {
+          var tm = appData.members.find(function(m) { return m.name === tName; });
+          if (tm) targetIds.push(tm.id);
+        });
+
+        if (targetIds.length > 0) {
+          var splitAmount = Math.floor(p.amount / targetIds.length);
+          targetIds.forEach(function(tId) {
+            if (balances[tId] !== undefined) balances[tId] -= splitAmount;
+          });
+        }
+      });
+
+      var creditors = [], debtors = [];
+      for (var id in balances) {
+        if (balances[id] > 0) creditors.push({ name: memberMap[id] || id, amount: balances[id] });
+        else if (balances[id] < 0) debtors.push({ name: memberMap[id] || id, amount: -balances[id] });
+      }
+
+      if (creditors.length === 0 && debtors.length === 0) {
+        container.innerHTML = '<p class="text-xs text-emerald-600 font-bold py-1">✨ 全員の支払いが均等でした（送金なし）</p>';
+        return;
+      }
+
+      var cIdx = 0, dIdx = 0;
+      while (cIdx < creditors.length && dIdx < debtors.length) {
+        var settleAmount = Math.min(creditors[cIdx].amount, debtors[dIdx].amount);
+        
+        var row = document.createElement("div");
+        row.className = "flex justify-between items-center bg-white p-2 rounded-xl border border-slate-100 font-bold";
+        row.innerHTML = 
+          '<span class="text-slate-700">👤 ' + debtors[dIdx].name + ' ➔ ' + creditors[cIdx].name + '</span>' +
+          '<span class="text-indigo-600 font-mono font-black">¥' + settleAmount.toLocaleString() + '</span>';
+        container.appendChild(row);
+
+        creditors[cIdx].amount -= settleAmount;
+        debtors[dIdx].amount -= settleAmount;
+        if (creditors[cIdx].amount === 0) cIdx++;
+        if (debtors[dIdx].amount === 0) dIdx++;
+      }
+    }
+
+    /**
+     * アプリ全体のUI描画
+     */
+    function renderApp(data) {
+      appData = Object.assign(appData, data);
+
+      var welcomeCard = document.getElementById("welcomeCard");
+      var mainCard = document.getElementById("mainCard");
+      var historyCard = document.getElementById("historyCard");
+
+      if (!data.events || data.events.length === 0) {
+        welcomeCard.classList.remove("hidden");
+        mainCard.classList.add("hidden");
+        historyCard.classList.add("hidden");
+        return;
+      } else {
+        welcomeCard.classList.add("hidden");
+        mainCard.classList.remove("hidden");
+        historyCard.classList.remove("hidden");
+      }
+
+      // 1. イベントプルダウン構築
+      var eventSelect = document.getElementById("eventSelect");
+      eventSelect.innerHTML = "";
+      data.events.forEach(function(ev) {
+        var opt = document.createElement("option");
+        opt.value = ev.id;
+        var statusIcon = ev.status === "closed" ? " [終了]" : "";
+        opt.textContent = ev.name + statusIcon;
+        if (ev.id === data.currentEventId) opt.selected = true;
+        eventSelect.appendChild(opt);
+      });
+
+      // 2. 支払った人プルダウン構築（localStorageから「自分」を自動復元）
+      var activeMembers = data.members.filter(function(m) { return m.status === "active"; });
+      var payerSelect = document.getElementById("payerSelect");
+      payerSelect.innerHTML = "";
+
+      var savedMyMemberId = localStorage.getItem("my_member_id_" + appData.groupId);
+
+      if (activeMembers.length === 0) {
+        var opt = document.createElement("option");
+        opt.value = "";
+        opt.textContent = "（メンバーが未登録です）";
+        payerSelect.appendChild(opt);
+      } else {
+        activeMembers.forEach(function(m) {
+          var opt = document.createElement("option");
+          opt.value = m.id;
+          opt.textContent = m.name;
+          if (savedMyMemberId && m.id === savedMyMemberId) {
+            opt.selected = true;
+          }
+          payerSelect.appendChild(opt);
+        });
+
+        if (!savedMyMemberId && activeMembers.length > 0) {
+          localStorage.setItem("my_member_id_" + appData.groupId, activeMembers[0].id);
+        }
+      }
+
+      // 3. 割り勘対象者チェックボックス構築
+      var targetsContainer = document.getElementById("targetMembersContainer");
+      targetsContainer.innerHTML = "";
+
+      if (activeMembers.length === 0) {
+        targetsContainer.innerHTML = '<p class="text-xs text-slate-400 col-span-2 py-2 text-center">上の「＋ メンバー追加」から登録してね</p>';
+      } else {
+        activeMembers.forEach(function(m) {
+          var label = document.createElement("label");
+          label.className = "flex items-center space-x-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200 cursor-pointer text-xs font-bold text-slate-700 select-none overflow-hidden text-ellipsis";
+          
+          var cb = document.createElement("input");
+          cb.type = "checkbox";
+          cb.name = "targetMember";
+          cb.value = m.id;
+          cb.checked = true;
+          cb.className = "rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4";
+
+          var span = document.createElement("span");
+          span.className = "truncate";
+          span.textContent = m.name;
+
+          label.appendChild(cb);
+          label.appendChild(span);
+          targetsContainer.appendChild(label);
+        });
+      }
+
+      updateFormLockState();
+      renderHistory();
+      renderMemberModalLists();
+      checkAutoOpenNewEvent(data);
+    }
+
+    /**
+     * メンバー管理モーダルの開閉
+     */
+    function openMemberModal() {
+      renderMemberModalLists();
+      document.getElementById("memberModal").classList.remove("hidden");
+    }
+
+    function closeMemberModal() {
+      document.getElementById("memberModal").classList.add("hidden");
+    }
+
+    /**
+     * メンバー管理モーダル内リスト描画
+     * ※ XSSインジェクションを防ぐため、文字列連結ではなく純粋なDOM操作＆textContentで構築
+     */
+    function renderMemberModalLists() {
+      var activeMembers = appData.members.filter(function(m) { return m.status === "active"; });
+      var inactiveMembers = appData.members.filter(function(m) { return m.status !== "active"; });
+
+      document.getElementById("activeCount").textContent = activeMembers.length + "人";
+      document.getElementById("inactiveCount").textContent = inactiveMembers.length + "人";
+
+      var savedMyId = localStorage.getItem("my_member_id_" + appData.groupId);
+
+      // アクティブメンバー描画
+      var activeList = document.getElementById("activeMemberList");
+      activeList.innerHTML = "";
+
+      if (activeMembers.length === 0) {
+        activeList.innerHTML = '<p class="text-xs text-slate-400 text-center py-2">メンバーがいません</p>';
+      } else {
+        activeMembers.forEach(function(m) {
+          var div = document.createElement("div");
+          div.className = "flex justify-between items-center bg-slate-50 p-2 rounded-xl text-xs font-bold text-slate-700";
+          
+          var nameSpan = document.createElement("span");
+          nameSpan.className = "truncate pr-2 flex items-center gap-1";
+          if (m.id === savedMyId) {
+            nameSpan.innerHTML = '<span class="text-amber-500">👑</span> ' + m.name + ' <span class="text-[10px] text-indigo-500 font-normal">(あなた)</span>';
+          } else {
+            nameSpan.textContent = m.name;
+          }
+
+          var rightBox = document.createElement("div");
+          rightBox.className = "flex items-center space-x-1";
+
+          if (m.id !== savedMyId) {
+            var setMeBtn = document.createElement("button");
+            setMeBtn.type = "button";
+            setMeBtn.className = "text-[10px] bg-white border border-slate-200 text-slate-500 hover:text-indigo-600 px-2 py-1 rounded-lg transition";
+            setMeBtn.textContent = "自分に設定";
+            setMeBtn.onclick = function() { setAsMe(m.id); };
+            rightBox.appendChild(setMeBtn);
+          }
+
+          var delBtn = document.createElement("button");
+          delBtn.type = "button";
+          delBtn.className = "text-rose-500 hover:text-rose-700 p-1 hover:bg-rose-50 rounded-lg text-sm transition";
+          delBtn.textContent = "🗑️";
+          delBtn.title = "お休みにする";
+          delBtn.onclick = function() { confirmDeactivateMember(m.id, m.name); };
+          rightBox.appendChild(delBtn);
+
+          div.appendChild(nameSpan);
+          div.appendChild(rightBox);
+          activeList.appendChild(div);
+        });
+      }
+
+      // お休み中メンバー描画
+      var inactiveSection = document.getElementById("inactiveSection");
+      var inactiveList = document.getElementById("inactiveMemberList");
+      inactiveList.innerHTML = "";
+
+      if (inactiveMembers.length > 0) {
+        inactiveSection.classList.remove("hidden");
+        inactiveMembers.forEach(function(m) {
+          var div = document.createElement("div");
+          div.className = "flex justify-between items-center bg-slate-50 p-2 rounded-xl text-xs font-bold text-slate-400";
+          
+          var nameSpan = document.createElement("span");
+          nameSpan.className = "truncate pr-2";
+          nameSpan.textContent = m.name;
+
+          var restoreBtn = document.createElement("button");
+          restoreBtn.type = "button";
+          restoreBtn.className = "text-indigo-600 hover:text-indigo-800 text-[11px] font-black bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-lg transition";
+          restoreBtn.textContent = "＋ 参加に戻す";
+          restoreBtn.onclick = function() { confirmActivateMember(m.id, m.name); };
+
+          div.appendChild(nameSpan);
+          div.appendChild(restoreBtn);
+          inactiveList.appendChild(div);
+        });
+      } else {
+        inactiveSection.classList.add("hidden");
+      }
+    }
+
+    /**
+     * ローカルストレージに「自分」のIDを保存し、次回から自動選択させる
+     */
+    function setAsMe(memberId) {
+      localStorage.setItem("my_member_id_" + appData.groupId, memberId);
+      loadData(appData.currentEventId);
+    }
+
+    /**
+     * メンバー論理休眠（inactive）の確認モーダル呼び出し
+     */
+    function confirmDeactivateMember(id, name) {
+      showConfirmModal(
+        "メンバーのお休み",
+        "「" + name + "」さんをお休みにしますか？\n\n※入力欄から非表示になりますが、過去の履歴はそのまま残ります。",
+        "お休みにする",
+        true,
+        function() {
+          google.script.run
+            .withSuccessHandler(function() { loadData(appData.currentEventId); })
+            .withFailureHandler(function(err) { alert("エラー: " + err.message); })
+            .toggleMemberStatus(appData.groupId, id, "inactive");
+        }
+      );
+    }
+
+    /**
+     * メンバー復帰（active）の確認モーダル呼び出し
+     */
+    function confirmActivateMember(id, name) {
+      showConfirmModal(
+        "メンバーの復帰",
+        "「" + name + "」さんを参加メンバーに戻しますか？",
+        "復帰する",
+        false,
+        function() {
+          google.script.run
+            .withSuccessHandler(function() { loadData(appData.currentEventId); })
+            .withFailureHandler(function(err) { alert("エラー: " + err.message); })
+            .toggleMemberStatus(appData.groupId, id, "active");
+        }
+      );
+    }
+
+    /**
+     * 支払い履歴一覧の描画（論理削除データの打消線 ＆ 詳細ポップアップ対応）
+     */
+    function renderHistory() {
+      var historyList = document.getElementById("historyList");
+      var currentEventPayments = appData.payments.filter(function(p) { return p.eventId === appData.currentEventId; });
+      var currentEv = appData.events.find(function(e) { return e.id === appData.currentEventId; });
+      var isClosed = currentEv && currentEv.status === "closed";
+
+      document.getElementById("historyCount").textContent = currentEventPayments.length + "件";
+      historyList.innerHTML = "";
+
+      if (currentEventPayments.length === 0) {
+        historyList.innerHTML = '<p class="text-xs text-slate-400 text-center py-4">このイベントの支払いはまだありません</p>';
+      } else {
+        currentEventPayments.forEach(function(p) {
+          var isDeleted = p.status === "deleted";
+          var item = document.createElement("div");
+          
+          item.className = "py-2.5 px-2 hover:bg-slate-50 rounded-xl cursor-pointer transition flex justify-between items-center " + 
+                           (isDeleted ? "opacity-50 bg-slate-50/50" : "");
+          
+          var targetText = p.isAllTargets ? "全員（" + p.targetNames.length + "人）" : p.targetNames.join(", ");
+
+          // 左カラム：用途と対象者
+          var left = document.createElement("div");
+          left.className = "max-w-[65%]";
+          
+          var desc = document.createElement("p");
+          desc.className = "text-xs font-bold text-slate-800 truncate " + (isDeleted ? "line-through text-slate-400" : "");
+          desc.textContent = p.description;
+
+          var detail = document.createElement("p");
+          detail.className = "text-[10px] text-slate-400 truncate";
+          detail.textContent = p.payerName + " が " + targetText + " に支払い";
+          left.appendChild(desc);
+          left.appendChild(detail);
+
+          // 右カラム：金額とアクション
+          var right = document.createElement("div");
+          right.className = "text-right flex items-center gap-1.5";
+
+          var amount = document.createElement("span");
+          amount.className = "text-sm font-black text-slate-700 " + (isDeleted ? "line-through text-slate-400 font-normal" : "");
+          amount.textContent = "¥" + p.amount.toLocaleString();
+          right.appendChild(amount);
+
+          if (isDeleted) {
+            var badge = document.createElement("span");
+            badge.className = "text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-bold";
+            badge.textContent = "取消済";
+            right.appendChild(badge);
+          } else if (!isClosed) {
+            var delBtn = document.createElement("button");
+            delBtn.type = "button";
+            delBtn.className = "text-slate-300 hover:text-rose-500 hover:bg-rose-50 p-1 rounded-lg text-xs transition";
+            delBtn.innerHTML = "🗑️";
+            delBtn.title = "この支払いを取消";
+            delBtn.onclick = function(e) {
+              e.stopPropagation();
+              confirmCancelPayment(p.id, p.description, p.amount);
+            };
+            right.appendChild(delBtn);
+          }
+
+          item.appendChild(left);
+          item.appendChild(right);
+
+          // 行タップで詳細モーダル起動
+          item.onclick = function() {
+            openPaymentDetailModal(p);
+          };
+
+          historyList.appendChild(item);
+        });
+      }
+    }
+
+    /**
+     * 支払い取消（論理削除）の確認モーダル呼び出し
+     */
+    function confirmCancelPayment(paymentId, description, amount) {
+      showConfirmModal(
+        "支払いの取り消し",
+        "『" + description + "（¥" + amount.toLocaleString() + "）』の支払いを取り消しますか？\n\n※履歴には「取消済」として残り、精算の計算から除外されます。",
+        "取り消す",
+        true,
+        function() {
+          google.script.run
+            .withSuccessHandler(function() { loadData(appData.currentEventId); })
+            .withFailureHandler(function(err) { alert("取消エラー: " + err.message); })
+            .cancelPaymentFromWeb(appData.groupId, paymentId);
+        }
+      );
+    }
+
+    /**
+     * 割り勘対象者チェックボックスの全選択/全解除
+     */
+    function selectAllTargets(shouldCheck) {
+      document.querySelectorAll('input[name="targetMember"]').forEach(function(cb) {
+        cb.checked = shouldCheck;
+      });
+    }
+
+    // ==========================================
+    // 汎用テキスト入力モーダル制御
+    // ==========================================
+    var currentInputCallback = null;
+
+    function showCustomInput(title, placeholder, callback) {
+      document.getElementById("inputModalTitle").textContent = title;
+      var field = document.getElementById("inputModalField");
+      field.value = "";
+      field.placeholder = placeholder;
+      currentInputCallback = callback;
+      document.getElementById("inputModal").classList.remove("hidden");
+      field.focus();
+    }
+
+    function closeInputModal() {
+      document.getElementById("inputModal").classList.add("hidden");
+    }
+
+    function submitCustomInput() {
+      var val = document.getElementById("inputModalField").value.trim();
+      if (val && currentInputCallback) {
+        currentInputCallback(val);
+      }
+      closeInputModal();
+    }
+
+    /**
+     * 新規メンバー追加プロンプト起動
+     */
+    function promptAddMember() {
+      showCustomInput("メンバー追加", "名前を入力（例: 田中、佐藤）", function(name) {
+        google.script.run
+          .withSuccessHandler(function() { loadData(appData.currentEventId); })
+          .withFailureHandler(function(err) { alert("メンバー追加エラー: " + err.message); })
+          .addMemberFromWeb(appData.groupId, name);
+      });
+    }
+
+    /**
+     * 新規イベント作成プロンプト起動
+     */
+    function promptCreateEvent() {
+      var activeEvent = appData.events ? appData.events.find(function(e) { return e.status === "active"; }) : null;
+
+      var proceed = function(shouldClose) {
+        showCustomInput("新しいイベント作成", "イベント名（例: 沖縄旅行、BBQ）", function(name) {
+          google.script.run
+            .withSuccessHandler(function(newEvent) { loadData(newEvent.id); })
+            .withFailureHandler(function(err) { alert("イベント作成エラー: " + err.message); })
+            .createEventFromWeb(appData.groupId, name, shouldClose);
+        });
+      };
+
+      if (activeEvent) {
+        showConfirmModal(
+          "新しいイベントの作成",
+          "現在『" + activeEvent.name + "』が進行中です。\n終了（精算完了）して新しいイベントを始めますか？",
+          "終了して新規作成",
+          false,
+          function() { proceed(true); }
+        );
+      } else {
+        proceed(false);
+      }
+    }
+
+    /**
+     * アクティブイベントが存在しない場合の自動作成アシスト
+     * ※ 明細URL（?eventId=...）で過去ログを直接閲覧しに来たユーザーは邪魔しない
+     */
+    function checkAutoOpenNewEvent(data) {
+      if (appData.targetEventId) return;
+      var hasActive = data.events && data.events.some(function(e) { return e.status === "active"; });
+      if (!hasActive && data.events && data.events.length > 0) {
+        promptCreateEvent();
+      }
+    }
+
+    /**
+     * 支払いフォーム送信ハンドラー
+     */
+    function submitForm(e) {
+      e.preventDefault();
+      var btn = document.getElementById("submitBtn");
+      var status = document.getElementById("statusMessage");
+
+      var payerId = document.getElementById("payerSelect").value;
+      if (!payerId) {
+        alert("支払った人を選択してください！（メンバーがいない場合は＋追加してください）");
+        return;
+      }
+
+      var checkedTargets = [];
+      document.querySelectorAll('input[name="targetMember"]:checked').forEach(function(cb) {
+        checkedTargets.push(cb.value);
+      });
+
+      if (checkedTargets.length === 0) {
+        alert("割り勘する人を1人以上選んでください！");
+        return;
+      }
+
+      var rawAmount = document.getElementById("amountInput").value.replace(/,/g, "");
+      var amount = Number(rawAmount);
+
+      if (!amount || amount <= 0) {
+        alert("正しい金額を入力してください");
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = "記録中...";
+      btn.classList.add("opacity-50");
+
+      var formData = {
+        groupId: appData.groupId,
+        eventId: appData.currentEventId,
+        payerId: payerId,
+        amount: amount,
+        description: document.getElementById("descInput").value,
+        targetMemberIds: checkedTargets.join(",")
+      };
+
+      google.script.run
+        .withSuccessHandler(function() {
+          btn.disabled = false;
+          btn.textContent = "支払いを記録する";
+          btn.classList.remove("opacity-50");
+
+          status.textContent = "✅ 支払いを記録しました！";
+          status.className = "text-center text-xs font-bold py-2.5 rounded-xl bg-emerald-100 text-emerald-700 block";
+
+          document.getElementById("amountInput").value = "";
+          document.getElementById("descInput").value = "";
+
+          loadData(appData.currentEventId);
+          setTimeout(function() { status.classList.add("hidden"); }, 3000);
+        })
+        .withFailureHandler(function(err) {
+          btn.disabled = false;
+          btn.textContent = "支払いを記録する";
+          btn.classList.remove("opacity-50");
+
+          status.textContent = "❌ エラー: " + err.message;
+          status.className = "text-center text-xs font-bold py-2.5 rounded-xl bg-rose-100 text-rose-700 block";
+        })
+        .recordPaymentFromWeb(formData);
+    }
+
+    // ==========================================
+    // リアルタイム試算モーダル制御
+    // ==========================================
+    function openBalanceModal() {
+      renderBalanceData();
+      document.getElementById("balanceModal").classList.remove("hidden");
+    }
+
+    function closeBalanceModal() {
+      document.getElementById("balanceModal").classList.add("hidden");
+    }
+
+    /**
+     * クライアント側でリアルタイムに収支を計算し試算モーダルを描画
+     */
+    function renderBalanceData() {
+      var currentPayments = appData.payments.filter(function(p) { 
+        return p.eventId === appData.currentEventId && p.status !== "deleted"; 
+      });
+      
+      var nextPayerBox = document.getElementById("balanceNextPayerBox");
+      var memberList = document.getElementById("balanceMemberList");
+      var settlementList = document.getElementById("balanceSettlementList");
+
+      if (currentPayments.length === 0) {
+        nextPayerBox.innerHTML = "💡 まだ支払いが記録されていません。";
+        memberList.innerHTML = '<p class="text-xs text-slate-400 text-center py-2">データがありません</p>';
+        settlementList.innerHTML = '<p class="text-xs text-slate-400 text-center py-2">データがありません</p>';
+        return;
+      }
+
+      var balances = {};
+      var memberMap = {};
+      appData.members.forEach(function(m) {
+        balances[m.id] = 0;
+        memberMap[m.id] = m.name;
+      });
+
+      currentPayments.forEach(function(p) {
+        var payerMember = appData.members.find(function(m) { return m.name === p.payerName; });
+        var payerId = payerMember ? payerMember.id : null;
+
+        if (payerId && balances[payerId] !== undefined) {
+          balances[payerId] += p.amount;
+        }
+
+        var targetIds = [];
+        p.targetNames.forEach(function(tName) {
+          var tm = appData.members.find(function(m) { return m.name === tName; });
+          if (tm) targetIds.push(tm.id);
+        });
+
+        if (targetIds.length > 0) {
+          var splitAmount = Math.floor(p.amount / targetIds.length);
+          targetIds.forEach(function(tId) {
+            if (balances[tId] !== undefined) {
+              balances[tId] -= splitAmount;
+            }
+          });
+        }
+      });
+
+      var balanceArray = [];
+      for (var mId in balances) {
+        var memberObj = appData.members.find(function(m) { return m.id === mId; });
+        if ((memberObj && memberObj.status === "active") || balances[mId] !== 0) {
+          balanceArray.push({
+            id: mId,
+            name: memberMap[mId] || mId,
+            amount: balances[mId]
+          });
+        }
+      }
+      balanceArray.sort(function(a, b) { return b.amount - a.amount; });
+
+      // 「次は誰が払う？」の自動レコメンド
+      var mostDebtor = balanceArray[balanceArray.length - 1];
+      if (mostDebtor && mostDebtor.amount < 0) {
+        nextPayerBox.innerHTML = 
+          '💡 次の支払いは <strong class="font-black text-indigo-700">「' + mostDebtor.name + '」</strong> さんが出すとバランスが取れます！（現在 ¥' + Math.abs(mostDebtor.amount).toLocaleString() + ' もらい過ぎ）';
+      } else {
+        nextPayerBox.innerHTML = '✨ 全員の支払いがほぼ均等です！誰が払ってもOKです。';
+      }
+
+      // 各自の収支一覧
+      memberList.innerHTML = "";
+      balanceArray.forEach(function(b, idx) {
+        var div = document.createElement("div");
+        div.className = "flex justify-between items-center bg-slate-50 p-2.5 rounded-xl text-xs font-bold";
+        
+        var isPlus = b.amount > 0;
+        var isZero = b.amount === 0;
+        var badge = idx === 0 && isPlus ? '👑 ' : '';
+        var colorClass = isPlus ? 'text-emerald-600' : (isZero ? 'text-slate-400' : 'text-rose-600');
+        var sign = isPlus ? '+' : '';
+
+        div.innerHTML = 
+          '<span class="text-slate-700 truncate">' + badge + b.name + '</span>' +
+          '<span class="' + colorClass + ' font-mono">' + sign + '¥' + b.amount.toLocaleString() + '</span>';
+        
+        memberList.appendChild(div);
+      });
+
+      // 仮送金ルートの算出
+      var creditors = [];
+      var debtors = [];
+      balanceArray.forEach(function(b) {
+        if (b.amount > 0) creditors.push({ name: b.name, amount: b.amount });
+        else if (b.amount < 0) debtors.push({ name: b.name, amount: -b.amount });
+      });
+
+      settlementList.innerHTML = "";
+      if (creditors.length === 0 && debtors.length === 0) {
+        settlementList.innerHTML = '<p class="text-xs text-slate-400 text-center py-2">送金の必要はありません✨</p>';
+      } else {
+        var cIdx = 0, dIdx = 0;
+        var hasRoute = false;
+        while (cIdx < creditors.length && dIdx < debtors.length) {
+          hasRoute = true;
+          var settleAmount = Math.min(creditors[cIdx].amount, debtors[dIdx].amount);
+          
+          var p = document.createElement("p");
+          p.className = "bg-slate-50 p-2 rounded-xl text-slate-600 flex justify-between";
+          p.innerHTML = 
+            '<span>👤 ' + debtors[dIdx].name + ' ➔ ' + creditors[cIdx].name + '</span>' +
+            '<span class="font-black text-slate-800 font-mono">¥' + settleAmount.toLocaleString() + '</span>';
+          settlementList.appendChild(p);
+
+          creditors[cIdx].amount -= settleAmount;
+          debtors[dIdx].amount -= settleAmount;
+          if (creditors[cIdx].amount === 0) cIdx++;
+          if (debtors[dIdx].amount === 0) dIdx++;
+        }
+        if (!hasRoute) {
+          settlementList.innerHTML = '<p class="text-xs text-slate-400 text-center py-2">送金の必要はありません✨</p>';
+        }
+      }
+    }
+
+    // ==========================================
+    // 汎用確認モーダル制御
+    // ==========================================
+    var currentConfirmCallback = null;
+
+    function showConfirmModal(title, message, okText, isDanger, onOk) {
+      document.getElementById("confirmModalTitle").textContent = title;
+      document.getElementById("confirmModalMessage").textContent = message;
+
+      var okBtn = document.getElementById("confirmModalOkBtn");
+      okBtn.textContent = okText || "OK";
+
+      if (isDanger) {
+        okBtn.className = "w-1/2 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-md transition";
+      } else {
+        okBtn.className = "w-1/2 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md transition";
+      }
+
+      currentConfirmCallback = onOk;
+      okBtn.onclick = function() {
+        var action = currentConfirmCallback;
+        closeConfirmModal();
+        if (action) action();
+      };
+
+      document.getElementById("confirmModal").classList.remove("hidden");
+    }
+
+    function closeConfirmModal() {
+      document.getElementById("confirmModal").classList.add("hidden");
+      currentConfirmCallback = null;
+    }
+
+    /**
+     * Web画面からの精算完了・イベント終了実行
+     */
+    function promptSettleCurrentEvent() {
+      var currentEv = appData.events.find(function(e) { return e.id === appData.currentEventId; });
+      if (!currentEv) return;
+
+      showConfirmModal(
+        "イベントの精算と終了",
+        "『" + currentEv.name + "』の精算を確定して終了しますか？\n\n・このイベントへの支払いの記録はロックされます。\n・LINEグループに最終結果と明細リンクが送信されます。",
+        "精算を確定する",
+        true,
+        function() {
+          var settleBtn = document.getElementById("settleEventBtn");
+          settleBtn.disabled = true;
+          settleBtn.textContent = "精算中...";
+
+          google.script.run
+            .withSuccessHandler(function() {
+              settleBtn.disabled = false;
+              settleBtn.innerHTML = "<span>🎉</span> このイベントを終了して精算する";
+              loadData(appData.currentEventId);
+            })
+            .withFailureHandler(function(err) {
+              settleBtn.disabled = false;
+              settleBtn.innerHTML = "<span>🎉</span> このイベントを終了して精算する";
+              alert("精算エラー: " + err.message);
+            })
+            .closeAndSettleEventFromWeb(appData.groupId, appData.currentEventId);
+        }
+      );
+    }
+
+    // ==========================================
+    // 支払い詳細モーダル制御
+    // ==========================================
+    function openPaymentDetailModal(p) {
+      var isDeleted = p.status === "deleted";
+      var banner = document.getElementById("detailDeletedBanner");
+      if (isDeleted) {
+        banner.classList.remove("hidden");
+      } else {
+        banner.classList.add("hidden");
+      }
+
+      document.getElementById("detailDesc").textContent = p.description;
+      document.getElementById("detailAmount").textContent = "¥" + p.amount.toLocaleString();
+      document.getElementById("detailPayer").textContent = p.payerName;
+      document.getElementById("detailTargets").textContent = p.targetNames.join(", ");
+      document.getElementById("detailDate").textContent = p.date;
+
+      document.getElementById("paymentDetailModal").classList.remove("hidden");
+    }
+
+    function closePaymentDetailModal() {
+      document.getElementById("paymentDetailModal").classList.add("hidden");
+    }
+  </script>
+</body>
+</html>
