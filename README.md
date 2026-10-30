@@ -14,7 +14,7 @@
 
 | 📷 QRコードで追加 | 🔗 リンクから直接追加 |
 | :---: | :---: |
-| <img src="https://qr-official.line.me/gs/M_894kjbyw_GW.png?oat_content=qr" width="160" alt="LINE友だち追加QRコード"> | [![友だち追加](https://scdn.line-apps.com/n/line_add_friends/btn/ja.png)](https://lin.ee/xsaMUGS) <br><br> [👉 こちらをタップしてLINEで開く](https://lin.ee/xsaMUGS) |
+| <img src="./screenshots/line_qr.png" width="160" alt="LINE友だち追加QRコード"> | [![友だち追加](https://scdn.line-apps.com/n/line_add_friends/btn/ja.png)](https://lin.ee/xsaMUGS) <br><br> [👉 こちらをタップしてLINEで開く](https://lin.ee/xsaMUGS) |
 
 ### 🚀 かんたん3ステップ
 1. 上のボタンまたはQRコードから「みんなのわりかん箱」を友だち追加
