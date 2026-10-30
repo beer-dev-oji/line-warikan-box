@@ -8,6 +8,21 @@
 
 ---
 
+## 📲 使ってみる（友だち追加）
+
+「みんなのわりかん箱」は、LINEグループに招待するだけですぐに使えます！（アプリDL・会員登録不要）
+
+| 📷 QRコードで追加 | 🔗 リンクから直接追加 |
+| :---: | :---: |
+| <img src="https://qr-official.line.me/gs/M_894kjbyw_GW.png?oat_content=qr" width="160" alt="LINE友だち追加QRコード"> | [![友だち追加](https://scdn.line-apps.com/n/line_add_friends/btn/ja.png)](https://lin.ee/xsaMUGS) <br><br> [👉 こちらをタップしてLINEで開く](https://lin.ee/xsaMUGS) |
+
+### 🚀 かんたん3ステップ
+1. 上のボタンまたはQRコードから「みんなのわりかん箱」を友だち追加
+2. 割り勘したいLINEグループに「みんなのわりかん箱」を招待
+3. トークで `@みんなのわりかん箱` と呼ぶだけで割り勘スタート！📦✨
+
+---
+
 ## 📸 スクリーンショット
 
 ### 1. LINEトーク画面（直感的な呼び出し ＆ 精算結果）
