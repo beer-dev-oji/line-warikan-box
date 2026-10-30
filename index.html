@@ -4,17 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>みんなのわりかん箱</title>
-  <!-- 
-    Tailwind CSS CDN: 
-    ビルド工程（Node.js/npm）を排除し、GASの単一HTMLファイル構成で爆速動作させるための選定
-  -->
+  <!-- Tailwind CSS（これだけで超軽量・爆速！） -->
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-100 min-h-screen p-3 sm:p-5 flex flex-col items-center font-sans text-slate-800">
 
   <div class="w-full max-w-md space-y-4">
 
-    <!-- 0. 初期セットアップ案内カード（イベントが0件のときのみ表示） -->
+    <!-- 0. 初期セットアップ案内カード（イベントが0件のときだけ表示） -->
     <div id="welcomeCard" class="hidden bg-white rounded-3xl shadow-sm p-6 border border-slate-200/80 text-center space-y-4">
       <div class="text-4xl">📦</div>
       <div>
@@ -27,10 +24,10 @@
       </button>
     </div>
 
-    <!-- 1. メイン入力カード（イベントが存在するときに表示） -->
+    <!-- 1. メイン入力カード（イベントがあるときに表示） -->
     <div id="mainCard" class="bg-white rounded-3xl shadow-sm p-6 border border-slate-200/80 space-y-5">
       
-      <!-- イベント選択ヘッダー -->
+      <!-- イベントヘッダー -->
       <div class="space-y-1.5 border-b pb-3">
         <div class="flex justify-between items-center">
           <span class="text-[10px] font-bold tracking-wider text-indigo-500 uppercase">Current Event</span>
@@ -39,11 +36,11 @@
           </button>
         </div>
         <select id="eventSelect" onchange="onEventChanged()" class="w-full text-base font-black text-slate-800 bg-transparent focus:outline-none cursor-pointer py-1">
-          <!-- JSで動的生成 -->
+          <!-- 動的生成 -->
         </select>
       </div>
 
-      <!-- 終了イベント（closed）時のロックバナーおよび確定結果表示エリア -->
+      <!-- 終了イベント警告バナー -->
       <div id="closedEventBanner" class="hidden space-y-3">
         <div class="bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2 rounded-2xl text-xs font-bold flex items-center gap-1.5">
           <span>🔒</span> このイベントは終了しています（履歴の閲覧のみ可能です）
@@ -59,10 +56,10 @@
         </div>
       </div>
 
-      <!-- 支払い入力フォーム（進行中イベントでのみ表示） -->
+      <!-- フォーム -->
       <form id="paymentForm" onsubmit="submitForm(event)" class="space-y-4">
         
-        <!-- 支払った人（オプトイン＆localStorageによる自分記憶対応） -->
+        <!-- 支払った人 -->
         <div>
           <div class="flex justify-between items-center mb-1">
             <label class="block text-xs font-bold text-slate-500">支払った人</label>
@@ -71,11 +68,11 @@
             </button>
           </div>
           <select id="payerSelect" required class="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-700">
-            <!-- JSで動的生成 -->
+            <!-- 動的生成 -->
           </select>
         </div>
 
-        <!-- 金額入力（3桁カンマ＆8桁上限物理リミッター付き） -->
+        <!-- 金額 -->
         <div>
           <label class="block text-xs font-bold text-slate-500 mb-1">金額（円）</label>
           <div class="relative">
@@ -86,14 +83,14 @@
           </div>
         </div>
 
-        <!-- 費目メモ -->
+        <!-- 支払い内容 -->
         <div>
           <label class="block text-xs font-bold text-slate-500 mb-1">支払い内容（何に使った？）</label>
           <input type="text" id="descInput" placeholder="例: レンタカー代、スタバ" required maxlength="50"
             class="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium">
         </div>
 
-        <!-- 割り勘対象メンバー選択（全選択/全解除の独立ボタン仕様） -->
+        <!-- 割り勘する対象者 -->
         <div>
           <div class="flex justify-between items-center mb-2">
             <div class="flex items-center space-x-2">
@@ -116,34 +113,34 @@
           </div>
 
           <div id="targetMembersContainer" class="grid grid-cols-2 gap-2">
-            <!-- JSで動的生成 -->
+            <!-- 動的生成 -->
           </div>
         </div>
 
-        <!-- 記録送信ボタン -->
+        <!-- 送信ボタン -->
         <button type="submit" id="submitBtn"
           class="w-full py-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-black text-base rounded-2xl shadow-md transition active:scale-95 text-center">
           支払いを記録する
         </button>
       </form>
 
-      <!-- リアルタイム試算ボタン（進行中・終了後いつでも確認可能） -->
+      <!-- ★試算ボタンをformの外へ配置！（終了イベントでも常にタップ可能） -->
       <button type="button" onclick="openBalanceModal()"
         class="w-full py-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold text-xs rounded-2xl transition flex items-center justify-center gap-1.5 active:scale-95">
         <span>📊</span> <span id="balanceBtnText">現在の支払いバランス・精算を見る</span>
       </button>
 
-      <!-- Web画面からの精算確定ボタン（進行中イベントのみ表示） -->
+      <!-- イベント終了＆精算ボタン（activeイベントの時だけ表示） -->
       <button type="button" id="settleEventBtn" onclick="promptSettleCurrentEvent()"
         class="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white font-black text-xs rounded-2xl shadow-sm transition flex items-center justify-center gap-1.5 active:scale-95">
         <span>🎉</span> このイベントを終了して精算する
       </button>
+      
 
-      <!-- トースト通知エリア -->
       <div id="statusMessage" class="hidden text-center text-sm font-bold py-2.5 rounded-xl"></div>
     </div>
 
-    <!-- 2. 支払い履歴カード -->
+    <!-- 2. 履歴カード -->
     <div id="historyCard" class="bg-white rounded-3xl shadow-sm p-6 border border-slate-200/80 space-y-3">
       <div class="flex justify-between items-center border-b pb-2">
         <h3 class="text-sm font-bold text-slate-700 flex items-center gap-1.5">
@@ -152,17 +149,13 @@
         <span id="historyCount" class="text-xs text-slate-400 font-bold">0件</span>
       </div>
       <div id="historyList" class="divide-y divide-slate-100 max-h-60 overflow-y-auto space-y-1">
-        <!-- JSで動的生成（論理削除項目は打消線表示） -->
+        <!-- 動的生成 -->
       </div>
     </div>
 
   </div>
 
-  <!-- ======================================================== -->
-  <!-- モーダル群（ブラウザ標準ポップアップを排除した自前UIコンポーネント） -->
-  <!-- ======================================================== -->
-
-  <!-- A. 支払いバランス・試算モーダル -->
+  <!-- 支払いバランス・試算モーダル -->
   <div id="balanceModal" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
     <div class="bg-white w-full max-w-sm rounded-3xl shadow-xl p-5 space-y-4 max-h-[85vh] flex flex-col">
       <div class="flex justify-between items-center border-b pb-2">
@@ -173,12 +166,12 @@
       </div>
 
       <div class="space-y-4 overflow-y-auto flex-1 pr-1">
-        <!-- 「次は誰が払う？」レコメンドバナー -->
+        <!-- 次に払うといい人バナー -->
         <div id="balanceNextPayerBox" class="bg-indigo-50 border border-indigo-100 rounded-2xl p-3 text-xs text-indigo-900">
           <!-- JSで動的生成 -->
         </div>
 
-        <!-- メンバー別 収支一覧（+○円 / -○円） -->
+        <!-- メンバー別 収支一覧 -->
         <div>
           <span class="text-xs font-bold text-slate-500 block mb-1.5">各メンバーの立て替え状況</span>
           <div id="balanceMemberList" class="space-y-1.5">
@@ -186,7 +179,7 @@
           </div>
         </div>
 
-        <!-- 仮の相殺精算ルート -->
+        <!-- 仮の精算ルート（もし今精算したら？） -->
         <div class="border-t pt-3">
           <span class="text-xs font-bold text-slate-500 block mb-1.5">今精算した場合の送金</span>
           <div id="balanceSettlementList" class="space-y-1.5 text-xs">
@@ -201,7 +194,7 @@
     </div>
   </div>
 
-  <!-- B. メンバー管理モーダル（論理削除 ＆ 自分設定） -->
+  <!-- 3. メンバー管理モーダル -->
   <div id="memberModal" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
     <div class="bg-white w-full max-w-sm rounded-3xl shadow-xl p-5 space-y-4 max-h-[85vh] flex flex-col">
       <div class="flex justify-between items-center border-b pb-2">
@@ -235,7 +228,7 @@
     </div>
   </div>
 
-  <!-- C. 汎用テキスト入力モーダル（脱・prompt） -->
+  <!-- 4. 自前入力モーダル -->
   <div id="inputModal" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
     <div class="bg-white w-full max-w-sm rounded-3xl shadow-xl p-5 space-y-4">
       <div class="flex justify-between items-center border-b pb-2">
@@ -252,7 +245,7 @@
     </div>
   </div>
 
-  <!-- D. 汎用確認モーダル（脱・confirm / 危険操作の赤ボタン対応） -->
+  <!-- 共通の自前確認モーダル（あの長いURLポップアップを撲滅！） -->
   <div id="confirmModal" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
     <div class="bg-white w-full max-w-sm rounded-3xl shadow-xl p-5 space-y-4">
       <h3 id="confirmModalTitle" class="font-black text-sm text-slate-800">確認</h3>
@@ -270,7 +263,40 @@
     </div>
   </div>
 
-  <!-- E. 支払い詳細モーダル（脱・alert） -->
+  <!-- 5. デバッグ情報バー（超シンプル版） -->
+  <div id="debugBar" class="hidden w-full max-w-md p-3 bg-slate-800 text-slate-300 rounded-2xl text-[10px] font-mono break-all space-y-1 mt-4">
+    <p>🛠️ DEBUG INFO</p>
+    <p>・GroupID: <span id="debugGroupId" class="text-amber-400">-</span></p>
+    <p>・イベント数: <span id="debugEventCount" class="text-cyan-400">0件</span></p>
+    <p>・メンバー数: <span id="debugMemberCount" class="text-emerald-400">0人</span></p>
+  </div>
+
+  <!-- 6. フッター（目安箱リンク ＆ 規約 ＆ クレジット） -->
+  <footer class="w-full max-w-md pt-6 pb-8 text-center space-y-2 mt-auto">
+    <div class="flex items-center justify-center gap-2">
+      <a href="★ここにGoogleフォーム目安箱のURL★" 
+         target="_blank" 
+         rel="noopener noreferrer"
+         class="inline-flex items-center gap-1 text-[11px] font-bold text-slate-400 hover:text-indigo-600 transition bg-white/60 hover:bg-white px-3 py-1.5 rounded-full border border-slate-200/80 shadow-sm active:scale-95">
+        <span>📮</span>
+        <span>目安箱</span>
+        <span class="text-[9px] text-slate-300">↗</span>
+      </a>
+
+      <a href="<?= serverWebAppUrl ?>?page=terms" 
+         target="_blank" 
+         rel="noopener noreferrer"
+         class="inline-flex items-center gap-1 text-[11px] font-bold text-slate-400 hover:text-indigo-600 transition bg-white/60 hover:bg-white px-3 py-1.5 rounded-full border border-slate-200/80 shadow-sm active:scale-95">
+        <span>📜</span>
+        <span>規約・ポリシー</span>
+        <span class="text-[9px] text-slate-300">↗</span>
+      </a>
+    </div>
+
+    <p class="text-[10px] text-slate-400 font-medium tracking-wider">みんなのわりかん箱</p>
+  </footer>
+
+  <!-- 7. 支払い詳細モーダル（脱・ブラウザアラート！） -->
   <div id="paymentDetailModal" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
     <div class="bg-white w-full max-w-sm rounded-3xl shadow-xl p-5 space-y-4">
       <div class="flex justify-between items-center border-b pb-2">
@@ -280,7 +306,7 @@
         <button type="button" onclick="closePaymentDetailModal()" class="text-slate-400 hover:text-slate-600 text-lg font-bold p-1">✕</button>
       </div>
 
-      <!-- 取消済バナー -->
+      <!-- 取消バナー（取消済の時だけ表示） -->
       <div id="detailDeletedBanner" class="hidden bg-rose-50 border border-rose-200 text-rose-700 px-3 py-2 rounded-2xl text-xs font-bold">
         ⚠️ この支払いは【取消済み】です（精算から除外）
       </div>
@@ -315,41 +341,11 @@
     </div>
   </div>
 
-  <!-- フッター（目安箱・利用規約への導線） -->
-  <footer class="w-full max-w-md pt-6 pb-8 text-center space-y-2 mt-auto">
-    <div class="flex items-center justify-center gap-2">
-      <!-- Googleフォーム目安箱（完全匿名・返信義務ゼロ設計） -->
-      <a href="YOUR_GOOGLE_FORM_URL" 
-         target="_blank" 
-         rel="noopener noreferrer"
-         class="inline-flex items-center gap-1 text-[11px] font-bold text-slate-400 hover:text-indigo-600 transition bg-white/60 hover:bg-white px-3 py-1.5 rounded-full border border-slate-200/80 shadow-sm active:scale-95">
-        <span>📮</span>
-        <span>目安箱</span>
-        <span class="text-[9px] text-slate-300">↗</span>
-      </a>
+  
 
-      <!-- 法的免責ページへの直リンク -->
-      <a href="<?= serverWebAppUrl ?>?page=terms" 
-         target="_blank" 
-         rel="noopener noreferrer"
-         class="inline-flex items-center gap-1 text-[11px] font-bold text-slate-400 hover:text-indigo-600 transition bg-white/60 hover:bg-white px-3 py-1.5 rounded-full border border-slate-200/80 shadow-sm active:scale-95">
-        <span>📜</span>
-        <span>規約・ポリシー</span>
-        <span class="text-[9px] text-slate-300">↗</span>
-      </a>
-    </div>
-
-    <p class="text-[10px] text-slate-400 font-medium tracking-wider">みんなのわりかん箱</p>
-  </footer>
-
-  <!-- ======================================================== -->
-  <!-- クライアントサイド JavaScript -->
-  <!-- ======================================================== -->
+  <!-- ★ 超軽量・高速JavaScript -->
   <script>
-    /**
-     * アプリケーションのグローバル状態管理オブジェクト
-     * GASのdoGet時にテンプレート評価で埋め込まれたGroupID, EventIDを即時保持
-     */
+    // サーバーから渡されたGroupId、EventIDを即座に採用（待ち時間ゼロ！）
     let appData = { 
       groupId: "<?= serverGroupId ?>", 
       targetEventId: "<?= serverEventId ?>",
@@ -359,16 +355,19 @@
       payments: [] 
     };
 
-    // 初期化：DOM構築完了直後にサーバーからデータ取得を開始
+    // 画面ロード：余計な初期化待ちは全廃し、即ロード！
     window.addEventListener("DOMContentLoaded", function() {
+      // 画面下部のデバッグ表示
+      var dbgGrp = document.getElementById("debugGroupId");
+      if (dbgGrp) dbgGrp.textContent = appData.groupId;
+
+      // URLで指定されたイベントがあればそれを渡す
       loadData(appData.targetEventId || null);
     });
 
-    /**
-     * GASバックエンドからデータを非同期取得する
-     * @param {string|null} selectedEventId - フォーカスするイベントID
-     */
+    // index.html の loadData を差し替え
     function loadData(selectedEventId) {
+      // 指定がなければ、URLパラメータで渡された targetEventId を使う
       var eventIdToSend = selectedEventId || appData.targetEventId || null;
 
       google.script.run
@@ -381,22 +380,15 @@
         .withFailureHandler(function(err) {
           alert("読み込みエラー: " + err.message);
         })
-        .getInitialData(appData.groupId, eventIdToSend);
+        .getInitialData(appData.groupId, eventIdToSend); // 第2引数もサーバーに届ける！
     }
 
-    /**
-     * 金額入力のフォーマッター（3桁カンマ区切り ＆ 8桁上限物理リミッター）
-     * サーバーに不正な値が飛ぶ前にフロントで物理的にブロックする
-     */
     function formatCurrency(input) {
       var raw = input.value.replace(/[^0-9]/g, "");
-      if (raw.length > 8) raw = raw.slice(0, 8); // 9,999万円上限
+      if (raw.length > 8) raw = raw.slice(0, 8);
       input.value = raw ? Number(raw).toLocaleString() : "";
     }
 
-    /**
-     * イベントプルダウン変更時のハンドラー
-     */
     function onEventChanged() {
       var select = document.getElementById("eventSelect");
       appData.currentEventId = select.value;
@@ -404,10 +396,6 @@
       renderHistory();
     }
 
-    /**
-     * イベントのステータス（active / closed）に応じたUIの切り替え
-     * closed時は入力フォームを隠し、確定精算結果を表示する
-     */
     function updateFormLockState() {
       var currentEv = appData.events.find(function(e) { return e.id === appData.currentEventId; });
       var isClosed = currentEv && currentEv.status === "closed";
@@ -419,93 +407,20 @@
 
       if (isClosed) {
         banner.classList.remove("hidden");
+        // 終了時は入力フォームをすっきり隠す（履歴と結果が見やすくなる！）
         form.classList.add("hidden");
-        if (settleBtn) settleBtn.classList.add("hidden");
+        if (settleBtn) settleBtn.classList.add("hidden"); // 終了時は精算ボタンを隠す
         balanceBtnText.textContent = "支払いバランス・詳細内訳を見る";
+        // 確定精算結果を描画
         renderClosedSettlement();
       } else {
         banner.classList.add("hidden");
         form.classList.remove("hidden");
-        if (settleBtn) settleBtn.classList.remove("hidden");
+        if (settleBtn) settleBtn.classList.remove("hidden"); // 進行中は精算ボタンを表示
         balanceBtnText.textContent = "現在の支払いバランス・精算を見る";
       }
     }
 
-    /**
-     * 終了済みイベント用の確定精算結果を描画する
-     */
-    function renderClosedSettlement() {
-      var container = document.getElementById("closedSettlementList");
-      container.innerHTML = "";
-
-      var currentPayments = appData.payments.filter(function(p) { 
-        return p.eventId === appData.currentEventId && p.status !== "deleted"; 
-      });
-
-      if (currentPayments.length === 0) {
-        container.innerHTML = '<p class="text-xs text-slate-400 py-1">記録された支払いはありません</p>';
-        return;
-      }
-
-      // 収支集計ロジック
-      var balances = {};
-      var memberMap = {};
-      appData.members.forEach(function(m) {
-        balances[m.id] = 0;
-        memberMap[m.id] = m.name;
-      });
-
-      currentPayments.forEach(function(p) {
-        var payerMember = appData.members.find(function(m) { return m.name === p.payerName; });
-        var payerId = payerMember ? payerMember.id : null;
-        if (payerId && balances[payerId] !== undefined) balances[payerId] += p.amount;
-
-        var targetIds = [];
-        p.targetNames.forEach(function(tName) {
-          var tm = appData.members.find(function(m) { return m.name === tName; });
-          if (tm) targetIds.push(tm.id);
-        });
-
-        if (targetIds.length > 0) {
-          var splitAmount = Math.floor(p.amount / targetIds.length);
-          targetIds.forEach(function(tId) {
-            if (balances[tId] !== undefined) balances[tId] -= splitAmount;
-          });
-        }
-      });
-
-      var creditors = [], debtors = [];
-      for (var id in balances) {
-        if (balances[id] > 0) creditors.push({ name: memberMap[id] || id, amount: balances[id] });
-        else if (balances[id] < 0) debtors.push({ name: memberMap[id] || id, amount: -balances[id] });
-      }
-
-      if (creditors.length === 0 && debtors.length === 0) {
-        container.innerHTML = '<p class="text-xs text-emerald-600 font-bold py-1">✨ 全員の支払いが均等でした（送金なし）</p>';
-        return;
-      }
-
-      var cIdx = 0, dIdx = 0;
-      while (cIdx < creditors.length && dIdx < debtors.length) {
-        var settleAmount = Math.min(creditors[cIdx].amount, debtors[dIdx].amount);
-        
-        var row = document.createElement("div");
-        row.className = "flex justify-between items-center bg-white p-2 rounded-xl border border-slate-100 font-bold";
-        row.innerHTML = 
-          '<span class="text-slate-700">👤 ' + debtors[dIdx].name + ' ➔ ' + creditors[cIdx].name + '</span>' +
-          '<span class="text-indigo-600 font-mono font-black">¥' + settleAmount.toLocaleString() + '</span>';
-        container.appendChild(row);
-
-        creditors[cIdx].amount -= settleAmount;
-        debtors[dIdx].amount -= settleAmount;
-        if (creditors[cIdx].amount === 0) cIdx++;
-        if (debtors[dIdx].amount === 0) dIdx++;
-      }
-    }
-
-    /**
-     * アプリ全体のUI描画
-     */
     function renderApp(data) {
       appData = Object.assign(appData, data);
 
@@ -524,7 +439,7 @@
         historyCard.classList.remove("hidden");
       }
 
-      // 1. イベントプルダウン構築
+      // 1. イベントプルダウン
       var eventSelect = document.getElementById("eventSelect");
       eventSelect.innerHTML = "";
       data.events.forEach(function(ev) {
@@ -536,7 +451,7 @@
         eventSelect.appendChild(opt);
       });
 
-      // 2. 支払った人プルダウン構築（localStorageから「自分」を自動復元）
+      // 2. 支払った人プルダウン
       var activeMembers = data.members.filter(function(m) { return m.status === "active"; });
       var payerSelect = document.getElementById("payerSelect");
       payerSelect.innerHTML = "";
@@ -564,7 +479,7 @@
         }
       }
 
-      // 3. 割り勘対象者チェックボックス構築
+      // 3. 対象者チェックボックス
       var targetsContainer = document.getElementById("targetMembersContainer");
       targetsContainer.innerHTML = "";
 
@@ -595,12 +510,15 @@
       updateFormLockState();
       renderHistory();
       renderMemberModalLists();
+
       checkAutoOpenNewEvent(data);
+
+      // デバッグ情報更新
+      document.getElementById("debugGroupId").textContent = appData.groupId || "未設定";
+      document.getElementById("debugEventCount").textContent = (data.events ? data.events.length : 0) + "件";
+      document.getElementById("debugMemberCount").textContent = (data.members ? data.members.length : 0) + "人";
     }
 
-    /**
-     * メンバー管理モーダルの開閉
-     */
     function openMemberModal() {
       renderMemberModalLists();
       document.getElementById("memberModal").classList.remove("hidden");
@@ -610,10 +528,6 @@
       document.getElementById("memberModal").classList.add("hidden");
     }
 
-    /**
-     * メンバー管理モーダル内リスト描画
-     * ※ XSSインジェクションを防ぐため、文字列連結ではなく純粋なDOM操作＆textContentで構築
-     */
     function renderMemberModalLists() {
       var activeMembers = appData.members.filter(function(m) { return m.status === "active"; });
       var inactiveMembers = appData.members.filter(function(m) { return m.status !== "active"; });
@@ -623,7 +537,7 @@
 
       var savedMyId = localStorage.getItem("my_member_id_" + appData.groupId);
 
-      // アクティブメンバー描画
+      // アクティブリスト
       var activeList = document.getElementById("activeMemberList");
       activeList.innerHTML = "";
 
@@ -646,6 +560,18 @@
           rightBox.className = "flex items-center space-x-1";
 
           if (m.id !== savedMyId) {
+            // ★ 1. 「🔗 これは私（統合）」ボタンを追加！
+            if (savedMyId) {
+              var mergeBtn = document.createElement("button");
+              mergeBtn.type = "button";
+              mergeBtn.className = "text-[10px] bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-600 font-bold px-2 py-1 rounded-lg transition active:scale-95";
+              mergeBtn.textContent = "🔗 これは私";
+              mergeBtn.title = "自分のアカウントに統合する";
+              mergeBtn.onclick = function() { confirmMergeMember(m.id, m.name); };
+              rightBox.appendChild(mergeBtn);
+            }
+
+            // 2. 「自分に設定」ボタン
             var setMeBtn = document.createElement("button");
             setMeBtn.type = "button";
             setMeBtn.className = "text-[10px] bg-white border border-slate-200 text-slate-500 hover:text-indigo-600 px-2 py-1 rounded-lg transition";
@@ -668,7 +594,7 @@
         });
       }
 
-      // お休み中メンバー描画
+      // 非アクティブリスト
       var inactiveSection = document.getElementById("inactiveSection");
       var inactiveList = document.getElementById("inactiveMemberList");
       inactiveList.innerHTML = "";
@@ -698,23 +624,18 @@
       }
     }
 
-    /**
-     * ローカルストレージに「自分」のIDを保存し、次回から自動選択させる
-     */
     function setAsMe(memberId) {
       localStorage.setItem("my_member_id_" + appData.groupId, memberId);
       loadData(appData.currentEventId);
     }
 
-    /**
-     * メンバー論理休眠（inactive）の確認モーダル呼び出し
-     */
+    // メンバーのお休み
     function confirmDeactivateMember(id, name) {
       showConfirmModal(
         "メンバーのお休み",
         "「" + name + "」さんをお休みにしますか？\n\n※入力欄から非表示になりますが、過去の履歴はそのまま残ります。",
         "お休みにする",
-        true,
+        true, // 危険（赤ボタン）
         function() {
           google.script.run
             .withSuccessHandler(function() { loadData(appData.currentEventId); })
@@ -724,15 +645,13 @@
       );
     }
 
-    /**
-     * メンバー復帰（active）の確認モーダル呼び出し
-     */
+    // メンバーの復帰
     function confirmActivateMember(id, name) {
       showConfirmModal(
         "メンバーの復帰",
         "「" + name + "」さんを参加メンバーに戻しますか？",
         "復帰する",
-        false,
+        false, // 通常（青ボタン）
         function() {
           google.script.run
             .withSuccessHandler(function() { loadData(appData.currentEventId); })
@@ -742,9 +661,36 @@
       );
     }
 
-    /**
-     * 支払い履歴一覧の描画（論理削除データの打消線 ＆ 詳細ポップアップ対応）
-     */
+    // ==========================================
+    // メンバーの統合（これは私）
+    // ==========================================
+    function confirmMergeMember(fromId, fromName) {
+      var savedMyId = localStorage.getItem("my_member_id_" + appData.groupId);
+      var myMember = appData.members.find(function(m) { return m.id === savedMyId; });
+      var myName = myMember ? myMember.name : "あなた";
+
+      showConfirmModal(
+        "メンバーの統合（これは私）",
+        "「" + fromName + "」さんのこれまでの支払いや割り勘負担を、\n" +
+        "あなた（" + myName + "）に統合しますか？\n\n" +
+        "※過去の支払いログはそのまま残り、精算の計算のみあなたに合算されます。\n" +
+        "※「" + fromName + "」さんは今後の入力欄から非表示になります。",
+        "統合する",
+        false, // 通常（青/インディゴボタン）
+        function() {
+          google.script.run
+            .withSuccessHandler(function() { 
+              loadData(appData.currentEventId); 
+            })
+            .withFailureHandler(function(err) { 
+              alert("統合エラー: " + err.message); 
+            })
+            .mergeMember(appData.groupId, fromId, savedMyId);
+        }
+      );
+    }
+
+    // 履歴リスト：deleted の場合は打ち消し線＆グレーアウト
     function renderHistory() {
       var historyList = document.getElementById("historyList");
       var currentEventPayments = appData.payments.filter(function(p) { return p.eventId === appData.currentEventId; });
@@ -761,16 +707,18 @@
           var isDeleted = p.status === "deleted";
           var item = document.createElement("div");
           
+          // 削除済みの場合は背景を少し暗くし、不透明度を下げる
           item.className = "py-2.5 px-2 hover:bg-slate-50 rounded-xl cursor-pointer transition flex justify-between items-center " + 
                            (isDeleted ? "opacity-50 bg-slate-50/50" : "");
           
           var targetText = p.isAllTargets ? "全員（" + p.targetNames.length + "人）" : p.targetNames.join(", ");
 
-          // 左カラム：用途と対象者
+          // 左側：内容と内訳
           var left = document.createElement("div");
           left.className = "max-w-[65%]";
           
           var desc = document.createElement("p");
+          // ★ 削除済みの場合は打ち消し線 (line-through)
           desc.className = "text-xs font-bold text-slate-800 truncate " + (isDeleted ? "line-through text-slate-400" : "");
           desc.textContent = p.description;
 
@@ -780,21 +728,24 @@
           left.appendChild(desc);
           left.appendChild(detail);
 
-          // 右カラム：金額とアクション
+          // 右側：金額 ＋ ステータス/取消ボタン
           var right = document.createElement("div");
           right.className = "text-right flex items-center gap-1.5";
 
           var amount = document.createElement("span");
+          // ★ 金額にも打ち消し線
           amount.className = "text-sm font-black text-slate-700 " + (isDeleted ? "line-through text-slate-400 font-normal" : "");
           amount.textContent = "¥" + p.amount.toLocaleString();
           right.appendChild(amount);
 
           if (isDeleted) {
+            // 取消済みバッジ
             var badge = document.createElement("span");
             badge.className = "text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-bold";
             badge.textContent = "取消済";
             right.appendChild(badge);
           } else if (!isClosed) {
+            // アクティブなら取消ボタン
             var delBtn = document.createElement("button");
             delBtn.type = "button";
             delBtn.className = "text-slate-300 hover:text-rose-500 hover:bg-rose-50 p-1 rounded-lg text-xs transition";
@@ -810,7 +761,7 @@
           item.appendChild(left);
           item.appendChild(right);
 
-          // 行タップで詳細モーダル起動
+          // 行タップで詳細確認
           item.onclick = function() {
             openPaymentDetailModal(p);
           };
@@ -820,15 +771,13 @@
       }
     }
 
-    /**
-     * 支払い取消（論理削除）の確認モーダル呼び出し
-     */
+    // 支払いの取消
     function confirmCancelPayment(paymentId, description, amount) {
       showConfirmModal(
         "支払いの取り消し",
         "『" + description + "（¥" + amount.toLocaleString() + "）』の支払いを取り消しますか？\n\n※履歴には「取消済」として残り、精算の計算から除外されます。",
         "取り消す",
-        true,
+        true, // 危険（赤ボタン）
         function() {
           google.script.run
             .withSuccessHandler(function() { loadData(appData.currentEventId); })
@@ -838,20 +787,13 @@
       );
     }
 
-    /**
-     * 割り勘対象者チェックボックスの全選択/全解除
-     */
     function selectAllTargets(shouldCheck) {
       document.querySelectorAll('input[name="targetMember"]').forEach(function(cb) {
         cb.checked = shouldCheck;
       });
     }
 
-    // ==========================================
-    // 汎用テキスト入力モーダル制御
-    // ==========================================
     var currentInputCallback = null;
-
     function showCustomInput(title, placeholder, callback) {
       document.getElementById("inputModalTitle").textContent = title;
       var field = document.getElementById("inputModalField");
@@ -874,9 +816,6 @@
       closeInputModal();
     }
 
-    /**
-     * 新規メンバー追加プロンプト起動
-     */
     function promptAddMember() {
       showCustomInput("メンバー追加", "名前を入力（例: 田中、佐藤）", function(name) {
         google.script.run
@@ -886,9 +825,7 @@
       });
     }
 
-    /**
-     * 新規イベント作成プロンプト起動
-     */
+    // イベント作成時の前イベント終了確認
     function promptCreateEvent() {
       var activeEvent = appData.events ? appData.events.find(function(e) { return e.status === "active"; }) : null;
 
@@ -914,21 +851,23 @@
       }
     }
 
-    /**
-     * アクティブイベントが存在しない場合の自動作成アシスト
-     * ※ 明細URL（?eventId=...）で過去ログを直接閲覧しに来たユーザーは邪魔しない
-     */
+    // ==========================================
+    // アクティブイベントがない場合の自動案内チェック
+    // ==========================================
     function checkAutoOpenNewEvent(data) {
+      // 明細直リンク（?eventId=...）で開いた時は過去ログを見に来た人なので邪魔しない
       if (appData.targetEventId) return;
+    
+      // アクティブなイベントがあるか確認
       var hasActive = data.events && data.events.some(function(e) { return e.status === "active"; });
+    
+      // アクティブが0件で、かつ過去イベントが存在する場合
       if (!hasActive && data.events && data.events.length > 0) {
+        // 優しく新規作成を促す
         promptCreateEvent();
       }
     }
 
-    /**
-     * 支払いフォーム送信ハンドラー
-     */
     function submitForm(e) {
       e.preventDefault();
       var btn = document.getElementById("submitBtn");
@@ -984,6 +923,7 @@
           document.getElementById("descInput").value = "";
 
           loadData(appData.currentEventId);
+
           setTimeout(function() { status.classList.add("hidden"); }, 3000);
         })
         .withFailureHandler(function(err) {
@@ -998,7 +938,7 @@
     }
 
     // ==========================================
-    // リアルタイム試算モーダル制御
+    // 支払いバランス・試算モーダル制御
     // ==========================================
     function openBalanceModal() {
       renderBalanceData();
@@ -1009,49 +949,56 @@
       document.getElementById("balanceModal").classList.add("hidden");
     }
 
-    /**
-     * クライアント側でリアルタイムに収支を計算し試算モーダルを描画
-     */
-    function renderBalanceData() {
+    // ==========================================
+    // ★ 共通計算エンジン（収支計算 ＆ 最小送金アルゴリズム）
+    // ==========================================
+    function calculateEventSettlement(eventId) {
       var currentPayments = appData.payments.filter(function(p) { 
-        return p.eventId === appData.currentEventId && p.status !== "deleted"; 
+        return p.eventId === eventId && p.status !== "deleted"; 
       });
-      
-      var nextPayerBox = document.getElementById("balanceNextPayerBox");
-      var memberList = document.getElementById("balanceMemberList");
-      var settlementList = document.getElementById("balanceSettlementList");
 
       if (currentPayments.length === 0) {
-        nextPayerBox.innerHTML = "💡 まだ支払いが記録されていません。";
-        memberList.innerHTML = '<p class="text-xs text-slate-400 text-center py-2">データがありません</p>';
-        settlementList.innerHTML = '<p class="text-xs text-slate-400 text-center py-2">データがありません</p>';
-        return;
+        return { hasPayment: false, balances: [], settlements: [], mostDebtor: null };
       }
 
+      // 1. 合流（エイリアス）マップ作成
+      var aliasMap = {};
+      appData.members.forEach(function(m) {
+        if (m.mergedTo) aliasMap[m.id] = m.mergedTo;
+      });
+
+      // 2. 収支オブジェクト初期化（mergedは除外）
       var balances = {};
       var memberMap = {};
       appData.members.forEach(function(m) {
-        balances[m.id] = 0;
-        memberMap[m.id] = m.name;
+        if (m.status !== "merged") {
+          balances[m.id] = 0;
+          memberMap[m.id] = m.name;
+        }
       });
 
+      // 3. 支払いを走査して収支を計算
       currentPayments.forEach(function(p) {
         var payerMember = appData.members.find(function(m) { return m.name === p.payerName; });
-        var payerId = payerMember ? payerMember.id : null;
+        var rawPayerId = payerMember ? payerMember.id : null;
+        var actualPayerId = aliasMap[rawPayerId] || rawPayerId;
 
-        if (payerId && balances[payerId] !== undefined) {
-          balances[payerId] += p.amount;
+        if (actualPayerId && balances[actualPayerId] !== undefined) {
+          balances[actualPayerId] += p.amount;
         }
 
-        var targetIds = [];
+        var rawTargetIds = [];
         p.targetNames.forEach(function(tName) {
           var tm = appData.members.find(function(m) { return m.name === tName; });
-          if (tm) targetIds.push(tm.id);
+          if (tm) rawTargetIds.push(tm.id);
         });
 
-        if (targetIds.length > 0) {
-          var splitAmount = Math.floor(p.amount / targetIds.length);
-          targetIds.forEach(function(tId) {
+        // 合流先へ変換してユニーク化
+        var actualTargetIds = Array.from(new Set(rawTargetIds.map(function(tId) { return aliasMap[tId] || tId; })));
+
+        if (actualTargetIds.length > 0) {
+          var splitAmount = Math.floor(p.amount / actualTargetIds.length);
+          actualTargetIds.forEach(function(tId) {
             if (balances[tId] !== undefined) {
               balances[tId] -= splitAmount;
             }
@@ -1059,6 +1006,7 @@
         }
       });
 
+      // 4. 配列化して降順ソート
       var balanceArray = [];
       for (var mId in balances) {
         var memberObj = appData.members.find(function(m) { return m.id === mId; });
@@ -1072,18 +1020,99 @@
       }
       balanceArray.sort(function(a, b) { return b.amount - a.amount; });
 
-      // 「次は誰が払う？」の自動レコメンド
+      // 5. 最小送金ルート計算（貪欲法）
+      var creditors = [];
+      var debtors = [];
+      balanceArray.forEach(function(b) {
+        if (b.amount > 0) creditors.push({ name: b.name, amount: b.amount });
+        else if (b.amount < 0) debtors.push({ name: b.name, amount: -b.amount });
+      });
+
+      var settlements = [];
+      var cIdx = 0, dIdx = 0;
+      while (cIdx < creditors.length && dIdx < debtors.length) {
+        var settleAmount = Math.min(creditors[cIdx].amount, debtors[dIdx].amount);
+        settlements.push({
+          fromName: debtors[dIdx].name,
+          toName: creditors[cIdx].name,
+          amount: settleAmount
+        });
+
+        creditors[cIdx].amount -= settleAmount;
+        debtors[dIdx].amount -= settleAmount;
+        if (creditors[cIdx].amount === 0) cIdx++;
+        if (debtors[dIdx].amount === 0) dIdx++;
+      }
+
       var mostDebtor = balanceArray[balanceArray.length - 1];
-      if (mostDebtor && mostDebtor.amount < 0) {
+
+      return {
+        hasPayment: true,
+        balances: balanceArray,
+        settlements: settlements,
+        mostDebtor: (mostDebtor && mostDebtor.amount < 0) ? mostDebtor : null
+      };
+    }
+
+    // ==========================================
+    // 終了イベント用の精算結果リスト描画（超スリム化！）
+    // ==========================================
+    function renderClosedSettlement() {
+      var container = document.getElementById("closedSettlementList");
+      container.innerHTML = "";
+
+      // ★ 共通計算エンジンから結果をもらうだけ！
+      var result = calculateEventSettlement(appData.currentEventId);
+
+      if (!result.hasPayment) {
+        container.innerHTML = '<p class="text-xs text-slate-400 py-1">記録された支払いはありません</p>';
+        return;
+      }
+
+      if (result.settlements.length === 0) {
+        container.innerHTML = '<p class="text-xs text-emerald-600 font-bold py-1">✨ 全員の支払いが均等でした（送金なし）</p>';
+        return;
+      }
+
+      result.settlements.forEach(function(s) {
+        var row = document.createElement("div");
+        row.className = "flex justify-between items-center bg-white p-2 rounded-xl border border-slate-100 font-bold";
+        row.innerHTML = 
+          '<span class="text-slate-700">👤 ' + s.fromName + ' ➔ ' + s.toName + '</span>' +
+          '<span class="text-indigo-600 font-mono font-black">¥' + s.amount.toLocaleString() + '</span>';
+        container.appendChild(row);
+      });
+    }
+
+    // ==========================================
+    // 試算モーダル描画（超スリム化！）
+    // ==========================================
+    function renderBalanceData() {
+      var nextPayerBox = document.getElementById("balanceNextPayerBox");
+      var memberList = document.getElementById("balanceMemberList");
+      var settlementList = document.getElementById("balanceSettlementList");
+
+      // ★ 共通計算エンジンから結果をもらうだけ！
+      var result = calculateEventSettlement(appData.currentEventId);
+
+      if (!result.hasPayment) {
+        nextPayerBox.innerHTML = "💡 まだ支払いが記録されていません。";
+        memberList.innerHTML = '<p class="text-xs text-slate-400 text-center py-2">データがありません</p>';
+        settlementList.innerHTML = '<p class="text-xs text-slate-400 text-center py-2">データがありません</p>';
+        return;
+      }
+
+      // 1. 次に払うべき人の表示
+      if (result.mostDebtor) {
         nextPayerBox.innerHTML = 
-          '💡 次の支払いは <strong class="font-black text-indigo-700">「' + mostDebtor.name + '」</strong> さんが出すとバランスが取れます！（現在 ¥' + Math.abs(mostDebtor.amount).toLocaleString() + ' もらい過ぎ）';
+          '💡 次の支払いは <strong class="font-black text-indigo-700">「' + result.mostDebtor.name + '」</strong> さんが出すとバランスが取れます！（現在 ¥' + Math.abs(result.mostDebtor.amount).toLocaleString() + ' もらい過ぎ）';
       } else {
         nextPayerBox.innerHTML = '✨ 全員の支払いがほぼ均等です！誰が払ってもOKです。';
       }
 
-      // 各自の収支一覧
+      // 2. 収支リスト描画
       memberList.innerHTML = "";
-      balanceArray.forEach(function(b, idx) {
+      result.balances.forEach(function(b, idx) {
         var div = document.createElement("div");
         div.className = "flex justify-between items-center bg-slate-50 p-2.5 rounded-xl text-xs font-bold";
         
@@ -1100,44 +1129,24 @@
         memberList.appendChild(div);
       });
 
-      // 仮送金ルートの算出
-      var creditors = [];
-      var debtors = [];
-      balanceArray.forEach(function(b) {
-        if (b.amount > 0) creditors.push({ name: b.name, amount: b.amount });
-        else if (b.amount < 0) debtors.push({ name: b.name, amount: -b.amount });
-      });
-
+      // 3. 送金ルート描画
       settlementList.innerHTML = "";
-      if (creditors.length === 0 && debtors.length === 0) {
+      if (result.settlements.length === 0) {
         settlementList.innerHTML = '<p class="text-xs text-slate-400 text-center py-2">送金の必要はありません✨</p>';
       } else {
-        var cIdx = 0, dIdx = 0;
-        var hasRoute = false;
-        while (cIdx < creditors.length && dIdx < debtors.length) {
-          hasRoute = true;
-          var settleAmount = Math.min(creditors[cIdx].amount, debtors[dIdx].amount);
-          
+        result.settlements.forEach(function(s) {
           var p = document.createElement("p");
           p.className = "bg-slate-50 p-2 rounded-xl text-slate-600 flex justify-between";
           p.innerHTML = 
-            '<span>👤 ' + debtors[dIdx].name + ' ➔ ' + creditors[cIdx].name + '</span>' +
-            '<span class="font-black text-slate-800 font-mono">¥' + settleAmount.toLocaleString() + '</span>';
+            '<span>👤 ' + s.fromName + ' ➔ ' + s.toName + '</span>' +
+            '<span class="font-black text-slate-800 font-mono">¥' + s.amount.toLocaleString() + '</span>';
           settlementList.appendChild(p);
-
-          creditors[cIdx].amount -= settleAmount;
-          debtors[dIdx].amount -= settleAmount;
-          if (creditors[cIdx].amount === 0) cIdx++;
-          if (debtors[dIdx].amount === 0) dIdx++;
-        }
-        if (!hasRoute) {
-          settlementList.innerHTML = '<p class="text-xs text-slate-400 text-center py-2">送金の必要はありません✨</p>';
-        }
+        });
       }
     }
 
     // ==========================================
-    // 汎用確認モーダル制御
+    // 汎用確認モーダル制御（URLポップアップ撲滅）
     // ==========================================
     var currentConfirmCallback = null;
 
@@ -1148,6 +1157,7 @@
       var okBtn = document.getElementById("confirmModalOkBtn");
       okBtn.textContent = okText || "OK";
 
+      // 危険な操作（削除など）は赤、通常はインディゴ
       if (isDanger) {
         okBtn.className = "w-1/2 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-md transition";
       } else {
@@ -1169,9 +1179,7 @@
       currentConfirmCallback = null;
     }
 
-    /**
-     * Web画面からの精算完了・イベント終了実行
-     */
+    // 精算確認モーダルを立ち上げる
     function promptSettleCurrentEvent() {
       var currentEv = appData.events.find(function(e) { return e.id === appData.currentEventId; });
       if (!currentEv) return;
@@ -1180,7 +1188,7 @@
         "イベントの精算と終了",
         "『" + currentEv.name + "』の精算を確定して終了しますか？\n\n・このイベントへの支払いの記録はロックされます。\n・LINEグループに最終結果と明細リンクが送信されます。",
         "精算を確定する",
-        true,
+        true, // 注意を促すため赤ボタン
         function() {
           var settleBtn = document.getElementById("settleEventBtn");
           settleBtn.disabled = true;
@@ -1190,6 +1198,7 @@
             .withSuccessHandler(function() {
               settleBtn.disabled = false;
               settleBtn.innerHTML = "<span>🎉</span> このイベントを終了して精算する";
+              // 最新状態を再読込（closed状態になる）
               loadData(appData.currentEventId);
             })
             .withFailureHandler(function(err) {
@@ -1202,9 +1211,7 @@
       );
     }
 
-    // ==========================================
     // 支払い詳細モーダル制御
-    // ==========================================
     function openPaymentDetailModal(p) {
       var isDeleted = p.status === "deleted";
       var banner = document.getElementById("detailDeletedBanner");
